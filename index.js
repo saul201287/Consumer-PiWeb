@@ -47,7 +47,7 @@ const connectToMqtt = async (topic, onMessage) => {
   }
 };
 
-const handlePagoMessage = async (topic, message) => {
+/*const handlePagoMessage = async (topic, message) => {
   try {
     console.log(`Mensaje recibido en ${topic}: ${message.toString()}`);
     await axios.post(
@@ -57,7 +57,7 @@ const handlePagoMessage = async (topic, message) => {
   } catch (error) {
     console.error("Error al procesar el mensaje de pago:", error);
   }
-};
+};*/
 
 const handleSensorMessage = async (topic, message) => {
   try {

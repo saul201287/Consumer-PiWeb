@@ -83,7 +83,7 @@ const handleSensorAlert = async (topic, message) => {
 };
 
 const main = async () => {
-  await connectToMqtt(topicPago, handlePagoMessage);
+  //await connectToMqtt(topicPago, handlePagoMessage);
   await connectToMqtt(topicSensor, handleSensorMessage);
   await connectToMqtt(topicAlert, handleSensorAlert);
 };

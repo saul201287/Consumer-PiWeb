@@ -26,11 +26,9 @@ if (
   throw new Error("Las variables de entorno no están definidas correctamente.");
 }
 
-// Crear colas de procesamiento
 const sensorQueue = new Queue("sensor-messages");
 const alertQueue = new Queue("alert-messages");
 
-// Procesar mensajes de sensor
 sensorQueue.process(5, async (job) => {
   const { topic, message } = job.data;
   try {
@@ -42,7 +40,6 @@ sensorQueue.process(5, async (job) => {
   }
 });
 
-// Procesar mensajes de alerta
 alertQueue.process(5, async (job) => {
   const { topic, message } = job.data;
   try {
@@ -57,7 +54,6 @@ alertQueue.process(5, async (job) => {
   }
 });
 
-// Función para manejar conexión MQTT
 const connectToMqtt = async (topics, onMessage) => {
   try {
     const client = mqtt.connect(mqttUrl, options);
@@ -83,7 +79,6 @@ const connectToMqtt = async (topics, onMessage) => {
   }
 };
 
-// Manejadores de mensajes
 const handleSensorMessage = (topic, message) => {
   sensorQueue.add({ topic, message: message.toString() });
 };
@@ -92,7 +87,6 @@ const handleSensorAlert = (topic, message) => {
   alertQueue.add({ topic, message: message.toString() });
 };
 
-// Iniciar el cliente MQTT
 const main = async () => {
   await connectToMqtt([topicSensor, topicAlert], (topic, message) => {
     if (topic === topicSensor) {

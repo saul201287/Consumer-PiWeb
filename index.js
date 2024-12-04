@@ -1,5 +1,6 @@
 const { default: axios } = require("axios");
 const mqtt = require("mqtt");
+const Queue = require("bull");
 require("dotenv").config();
 
 const options = {
@@ -19,20 +20,55 @@ if (
   !options.password ||
   !mqttUrl ||
   !topicPago ||
-  !topicSensor
+  !topicSensor ||
+  !topicAlert
 ) {
   throw new Error("Las variables de entorno no están definidas correctamente.");
 }
 
-const connectToMqtt = async (topic, onMessage) => {
+// Crear colas de procesamiento
+const sensorQueue = new Queue("sensor-messages");
+const alertQueue = new Queue("alert-messages");
+
+// Procesar mensajes de sensor
+sensorQueue.process(5, async (job) => {
+  const { topic, message } = job.data;
+  try {
+    const parsedMessage = JSON.parse(message);
+    await axios.post(`${process.env.URL_API}/notification/data`, parsedMessage);
+    console.log(`Mensaje de sensor procesado: ${parsedMessage}`);
+  } catch (error) {
+    console.error("Error al procesar mensaje de sensor en la cola:", error);
+  }
+});
+
+// Procesar mensajes de alerta
+alertQueue.process(5, async (job) => {
+  const { topic, message } = job.data;
+  try {
+    const parsedMessage = JSON.parse(message);
+    await axios.post(
+      `${process.env.URL_API}/notification/alert`,
+      parsedMessage
+    );
+    console.log(`Mensaje de alerta procesado: ${parsedMessage}`);
+  } catch (error) {
+    console.error("Error al procesar mensaje de alerta en la cola:", error);
+  }
+});
+
+// Función para manejar conexión MQTT
+const connectToMqtt = async (topics, onMessage) => {
   try {
     const client = mqtt.connect(mqttUrl, options);
 
     client.on("connect", () => {
-      console.log(`Conectado al broker MQTT. Suscrito al tema: ${topic}`);
-      client.subscribe(topic, { qos: 1 }, (err) => {
+      console.log(`Conectado al broker MQTT.`);
+      client.subscribe(topics, { qos: 1 }, (err) => {
         if (err) {
-          console.error(`Error al suscribirse al tema ${topic}:`, err);
+          console.error(`Error al suscribirse a los temas:`, err);
+        } else {
+          console.log(`Suscrito a los temas: ${topics.join(", ")}`);
         }
       });
     });
@@ -43,49 +79,28 @@ const connectToMqtt = async (topic, onMessage) => {
       console.error("Error en el consumidor:", error);
     });
   } catch (error) {
-    console.error("Error en el consumidor:", error);
+    console.error("Error en el consumidor MQTT:", error);
   }
 };
 
-/*const handlePagoMessage = async (topic, message) => {
-  try {
-    console.log(`Mensaje recibido en ${topic}: ${message.toString()}`);
-    await axios.post(
-      `${process.env.URL_API}/notification/alert`,
-      JSON.parse(message.toString())
-    );
-  } catch (error) {
-    console.error("Error al procesar el mensaje de pago:", error);
-  }
-};*/
-
-const handleSensorMessage = async (topic, message) => {
-  try {
-    const parsedMessage = JSON.parse(message.toString());
-    await axios.post(`${process.env.URL_API}/notification/data`, parsedMessage);
-    console.log(
-      `Datos de sensor recibidos y enviados a la API: ${parsedMessage}`
-    );
-  } catch (error) {
-    console.error("Error al procesar el mensaje del sensor:", error);
-  }
-};
-const handleSensorAlert = async (topic, message) => {
-  try {
-    const parsedMessage = JSON.parse(message.toString());
-    await axios.post(`${process.env.URL_API}/notification/alert`, parsedMessage);
-    console.log(
-      `Datos de sensor recibidos y enviados a la API: ${parsedMessage}`
-    );
-  } catch (error) {
-    console.error("Error al procesar el mensaje del sensor:", error);
-  }
+// Manejadores de mensajes
+const handleSensorMessage = (topic, message) => {
+  sensorQueue.add({ topic, message: message.toString() });
 };
 
+const handleSensorAlert = (topic, message) => {
+  alertQueue.add({ topic, message: message.toString() });
+};
+
+// Iniciar el cliente MQTT
 const main = async () => {
-  //await connectToMqtt(topicPago, handlePagoMessage);
-  await connectToMqtt(topicSensor, handleSensorMessage);
-  await connectToMqtt(topicAlert, handleSensorAlert);
+  await connectToMqtt([topicSensor, topicAlert], (topic, message) => {
+    if (topic === topicSensor) {
+      handleSensorMessage(topic, message);
+    } else if (topic === topicAlert) {
+      handleSensorAlert(topic, message);
+    }
+  });
 };
 
 main();
